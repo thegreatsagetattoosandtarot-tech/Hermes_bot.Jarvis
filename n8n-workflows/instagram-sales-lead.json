@@ -1,0 +1,232 @@
+{
+  "name": "Instagram DFY OS Sales Lead Capture",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-sales-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000001",
+      "name": "Instagram Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "instagram-sales-lead-webhook"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.body.entry[0].messaging[0].message.text || $json.body.entry[0].changes[0].value.message || '' }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "AI|jarvis|automation|system|OS|agent",
+              "operation": "regex"
+            }
+          ]
+        },
+        "fallbackOutput": "none"
+      },
+      "id": "b2c3d4e5-0002-0002-0002-000000000002",
+      "name": "Keyword Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/me/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $vars.FACEBOOK_PAGE_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "recipient",
+              "value": "={\"id\": \"{{ $json.body.entry[0].messaging[0].sender.id }}\"}"
+            },
+            {
+              "name": "message",
+              "value": "={\"text\": \"Hey! You're asking about something powerful 🤖⚡\\n\\nJARVIS OS is our Done-For-You AI automation system — built to run your business on autopilot.\\n\\n🔗 Check out the Mission Control Demo:\\nhttp://2.25.142.122/mission-control-demo.html\\n\\nWant a full walkthrough? Let's connect and show you what's possible!\"}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2c3d4e5-0003-0003-0003-000000000003",
+      "name": "Reply with Demo Link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 180]
+    },
+    {
+      "parameters": {
+        "functionCode": "const entry = items[0].json.body?.entry?.[0] || {};\nconst messaging = entry.messaging?.[0] || {};\nconst sender = messaging.sender?.id || 'unknown';\nconst message = messaging.message?.text || entry.changes?.[0]?.value?.message || '';\nconst timestamp = new Date().toISOString();\n\n// Detect which keyword triggered\nconst keywordPattern = /AI|jarvis|automation|system|OS|agent/i;\nconst matchedKeyword = message.match(keywordPattern)?.[0] || 'unknown';\n\nconst crmEntry = {\n  id: `SALES-${Date.now()}`,\n  type: 'SALES_LEAD',\n  source: 'instagram',\n  timestamp: timestamp,\n  sender_id: sender,\n  message: message,\n  matched_keyword: matchedKeyword,\n  status: 'NEW',\n  demo_link: 'http://2.25.142.122/mission-control-demo.html',\n  product: 'DFY OS',\n  assigned_to: 'Barachiel',\n  notes: 'Auto-captured from Instagram DM — DFY OS sales keyword trigger'\n};\n\nreturn [{ json: crmEntry }];"
+      },
+      "id": "b2c3d4e5-0004-0004-0004-000000000004",
+      "name": "Build SALES_LEAD CRM Entry",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "appendToFile",
+        "filePath": "/root/jarvis-crm.json",
+        "dataPropertyName": "json",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "b2c3d4e5-0005-0005-0005-000000000005",
+      "name": "Write to CRM File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.BARACHIEL_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "event",
+              "value": "new_sales_lead"
+            },
+            {
+              "name": "crm_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "source",
+              "value": "instagram"
+            },
+            {
+              "name": "sender_id",
+              "value": "={{ $json.sender_id }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            },
+            {
+              "name": "matched_keyword",
+              "value": "={{ $json.matched_keyword }}"
+            },
+            {
+              "name": "product",
+              "value": "DFY OS"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $json.timestamp }}"
+            },
+            {
+              "name": "notification",
+              "value": "🔔 New DFY OS sales lead captured from Instagram! Assigned to Barachiel."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2c3d4e5-0006-0006-0006-000000000006",
+      "name": "Notify Barachiel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Instagram Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Keyword Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keyword Router": {
+      "main": [
+        [
+          {
+            "node": "Reply with Demo Link",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build SALES_LEAD CRM Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build SALES_LEAD CRM Entry": {
+      "main": [
+        [
+          {
+            "node": "Write to CRM File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to CRM File": {
+      "main": [
+        [
+          {
+            "node": "Notify Barachiel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "instagram"
+    },
+    {
+      "name": "sales"
+    },
+    {
+      "name": "dfy-os"
+    },
+    {
+      "name": "crm"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-07-04T00:00:00.000Z",
+  "id": "instagram-sales-lead",
+  "meta": {
+    "instanceId": "jarvis-os-thegreattsage"
+  }
+}
