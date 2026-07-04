@@ -1,0 +1,159 @@
+{
+  "name": "Google Calendar CRM Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calendar-sync",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c3d4e5f6-0001-0001-0001-000000000001",
+      "name": "CRM Entry Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "calendar-sync-webhook"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.body.type || $json.type || '' }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "BOOKING",
+              "operation": "equal",
+              "output": 0
+            },
+            {
+              "value2": "SALES_LEAD",
+              "operation": "equal",
+              "output": 1
+            }
+          ]
+        },
+        "fallbackOutput": "none"
+      },
+      "id": "c3d4e5f6-0002-0002-0002-000000000002",
+      "name": "Route by CRM Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "calendar": {
+          "__rl": true,
+          "value": "The Great Sage Bookings",
+          "mode": "name"
+        },
+        "start": "={{ $json.body.timestamp || $json.timestamp || new Date().toISOString() }}",
+        "end": "={{ new Date(new Date($json.body.timestamp || $json.timestamp || new Date()).getTime() + 60*60*1000).toISOString() }}",
+        "additionalFields": {
+          "summary": "=🖋️ Tattoo/Tarot Booking Inquiry — {{ $json.body.sender_id || $json.sender_id || 'Unknown' }}",
+          "description": "=**CRM ID:** {{ $json.body.id || $json.id }}\n**Source:** {{ $json.body.source || $json.source }}\n**Message:** {{ $json.body.message || $json.message }}\n**Status:** {{ $json.body.status || $json.status }}\n**Setmore Link:** {{ $json.body.setmore_link || 'https://setmore.com/thegreatssage' }}\n\nAuto-created by JARVIS OS from Instagram booking inquiry.",
+          "location": "The Great Sage Tattoos & Tarot",
+          "colorId": "5"
+        }
+      },
+      "id": "c3d4e5f6-0003-0003-0003-000000000003",
+      "name": "Create Booking Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [680, 180],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "google-calendar-creds",
+          "name": "Google Calendar — The Great Sage"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "calendar": {
+          "__rl": true,
+          "value": "DFY OS Prospects",
+          "mode": "name"
+        },
+        "start": "={{ $json.body.timestamp || $json.timestamp || new Date().toISOString() }}",
+        "end": "={{ new Date(new Date($json.body.timestamp || $json.timestamp || new Date()).getTime() + 60*60*1000).toISOString() }}",
+        "additionalFields": {
+          "summary": "=🤖 DFY OS Sales Lead — {{ $json.body.sender_id || $json.sender_id || 'Unknown' }}",
+          "description": "=**CRM ID:** {{ $json.body.id || $json.id }}\n**Source:** {{ $json.body.source || $json.source }}\n**Message:** {{ $json.body.message || $json.message }}\n**Matched Keyword:** {{ $json.body.matched_keyword || $json.matched_keyword }}\n**Status:** {{ $json.body.status || $json.status }}\n**Assigned To:** {{ $json.body.assigned_to || $json.assigned_to || 'Barachiel' }}\n**Demo Link:** {{ $json.body.demo_link || 'http://2.25.142.122/mission-control-demo.html' }}\n\nAuto-created by JARVIS OS from Instagram DFY OS sales inquiry.",
+          "location": "Remote / Online",
+          "colorId": "9"
+        }
+      },
+      "id": "c3d4e5f6-0004-0004-0004-000000000004",
+      "name": "Create Sales Lead Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [680, 420],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "google-calendar-creds",
+          "name": "Google Calendar — The Great Sage"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "CRM Entry Webhook": {
+      "main": [
+        [
+          {
+            "node": "Route by CRM Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by CRM Type": {
+      "main": [
+        [
+          {
+            "node": "Create Booking Calendar Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Sales Lead Calendar Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "google-calendar"
+    },
+    {
+      "name": "crm"
+    },
+    {
+      "name": "sync"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-07-04T00:00:00.000Z",
+  "id": "google-calendar-sync",
+  "meta": {
+    "instanceId": "jarvis-os-thegreattsage"
+  }
+}
