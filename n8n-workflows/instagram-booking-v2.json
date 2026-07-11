@@ -1,5 +1,6 @@
 {
   "name": "Instagram Booking Handler v2",
+  "_confirmationGateAudit": "PAYMENT-AUDIT FIX (payment-pathway-audit SKILL, Pathway 3, was FLAG): Added explicit confirmation-gate nodes below. Any future Stripe/deposit-request creation using JARVIS-held credentials MUST route through 'Request Angel Confirmation' -> 'Wait for Angel Confirmation Reply' -> 'IF Confirmation Matches Amount+Recipient' before reaching 'Create Stripe Deposit Request (GATED)'. If confirmation text does not exactly restate amount and recipient, flow routes to 'Log - No Action Taken' and the deposit is never created. Mode (b) from the audit (JARVIS-held credentials) is now safe; mode (a) customer self-serve Setmore checkout remains the default/preferred path and is unaffected by this gate.",
   "nodes": [
     {
       "parameters": {
@@ -59,7 +60,7 @@
             },
             {
               "name": "message",
-              "value": "={\"text\": \"Hey! Thanks for reaching out to The Great Sage 🔮🖋️\\n\\nReady to book your session? Click here to schedule:\\n👉 https://setmore.com/thegreatssage\\n\\nWe offer custom tattoos, flash designs, and tarot readings. We can't wait to work with you!\"}"
+              "value": "={\"text\": \"Hey! Thanks for reaching out to The Great Sage \ud83d\udd2e\ud83d\udd8b\ufe0f\\n\\nReady to book your session? Click here to schedule:\\n\ud83d\udc49 https://setmore.com/thegreatssage\\n\\nWe offer custom tattoos, flash designs, and tarot readings. We can't wait to work with you!\"}"
             }
           ]
         },
@@ -129,7 +130,7 @@
             },
             {
               "name": "notification",
-              "value": "🔔 New booking inquiry captured from Instagram! Check jarvis-crm.json"
+              "value": "\ud83d\udd14 New booking inquiry captured from Instagram! Check jarvis-crm.json"
             }
           ]
         },
@@ -140,6 +141,131 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "content": "## Confirmation Gate (Payment Audit Fix)\nEverything below is the required gate for the *future* Setmore->Stripe deposit chain. It must never be bypassed if JARVIS-held Stripe credentials are used. The current live flow ends at 'Notify JARVIS via Convos' above and does NOT yet create Stripe charges (customer self-serve Setmore checkout only, mode (a) - PASS). If/when automated deposit-request creation is added, it MUST be wired through this gate, not directly off any DM/booking event.",
+        "height": 200,
+        "width": 460
+      },
+      "id": "a1b2c3d4-0007-0007-0007-000000000007",
+      "name": "Confirmation Gate Documentation",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1120, 520]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "setmore-booking-confirmed",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0008-0008-0008-000000000008",
+      "name": "Setmore Booking Confirmed Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [1340, 620],
+      "webhookId": "setmore-booking-confirmed-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.CONVOS_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "event",
+              "value": "deposit_confirmation_required"
+            },
+            {
+              "name": "message",
+              "value": "=\ud83d\udd10 CONFIRMATION REQUIRED before any deposit is charged.\\nBooking: {{ $json.booking_id }}\\nClient: {{ $json.client_name }}\\nAmount: ${{ $json.deposit_amount }}\\nRecipient/Payee: {{ $vars.STUDIO_STRIPE_ACCOUNT_NAME }}\\n\\nReply with the EXACT phrase to authorize:\\nCONFIRM ${{ $json.deposit_amount }} to {{ $vars.STUDIO_STRIPE_ACCOUNT_NAME }} for {{ $json.client_name }}\\n\\nNo deposit request will be created until Angel sends this exact confirmation in the current turn."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0009-0009-0009-000000000009",
+      "name": "Request Angel Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1560, 620]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "angel-confirmation-reply",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0010-0010-0010-000000000010",
+      "name": "Wait for Angel Confirmation Reply",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [1780, 620],
+      "webhookId": "angel-confirmation-reply-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.confirmation_text }}",
+              "value2": "=CONFIRM ${{ $('Request Angel Confirmation').item.json.deposit_amount }} to {{ $vars.STUDIO_STRIPE_ACCOUNT_NAME }} for {{ $('Request Angel Confirmation').item.json.client_name }}"
+            }
+          ]
+        },
+        "combineOperation": "all"
+      },
+      "id": "a1b2c3d4-0011-0011-0011-000000000011",
+      "name": "IF Confirmation Matches Amount+Recipient",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2000, 620]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/payment_intents",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "amount",
+              "value": "={{ $json.deposit_amount_cents }}"
+            },
+            {
+              "name": "currency",
+              "value": "usd"
+            },
+            {
+              "name": "description",
+              "value": "=Deposit confirmed by Angel for booking {{ $json.booking_id }}"
+            }
+          ]
+        },
+        "options": {},
+        "disabled": true
+      },
+      "id": "a1b2c3d4-0012-0012-0012-000000000012",
+      "name": "Create Stripe Deposit Request (GATED)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2220, 560]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ json: { logged_at: new Date().toISOString(), action: 'NO_DEPOSIT_CREATED', reason: 'Confirmation text did not match required amount+recipient restatement.' } }];"
+      },
+      "id": "a1b2c3d4-0013-0013-0013-000000000013",
+      "name": "Log - No Action Taken",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2220, 700]
     }
   ],
   "connections": {
@@ -191,6 +317,57 @@
           }
         ]
       ]
+    },
+    "Setmore Booking Confirmed Trigger": {
+      "main": [
+        [
+          {
+            "node": "Request Angel Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Angel Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Wait for Angel Confirmation Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Angel Confirmation Reply": {
+      "main": [
+        [
+          {
+            "node": "IF Confirmation Matches Amount+Recipient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Confirmation Matches Amount+Recipient": {
+      "main": [
+        [
+          {
+            "node": "Create Stripe Deposit Request (GATED)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log - No Action Taken",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -210,10 +387,13 @@
     },
     {
       "name": "crm"
+    },
+    {
+      "name": "payment-audit-gated"
     }
   ],
   "triggerCount": 0,
-  "updatedAt": "2026-07-04T00:00:00.000Z",
+  "updatedAt": "2026-07-11T00:00:00.000Z",
   "id": "instagram-booking-v2",
   "meta": {
     "instanceId": "jarvis-os-thegreattsage"
